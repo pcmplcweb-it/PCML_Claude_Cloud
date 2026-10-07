@@ -152,7 +152,7 @@ export default function SettlementDetail() {
   const withReason = (reason) => {
     if (modal.kind === 'hold') transition(S.ON_HOLD, 'Placed on Hold', { reason });
     else if (modal.kind === 'release') transition(releaseStatus(sep), 'Released from Hold', { reason });
-    else transition(S.WITHDRAWN, 'Withdrawn', { reason, toast: `Separation withdrawn; ${emp.name} returns to ${sep.previousStatus}.` });
+    else transition(S.WITHDRAWN, 'Withdrawn', { reason, toast: `Separation withdrawn; ${emp.name} returns to ${emp.status === EMPLOYEE_STATUS.SUSPENDED ? emp.status : sep.previousStatus}.` });
   };
   const printStatement = () => { setTab('statement'); window.setTimeout(() => window.print(), 150); };
   const printCertificate = () => { setTab('approvals'); setPrintMode('certificate'); window.setTimeout(() => { window.print(); setPrintMode(null); }, 150); };
@@ -267,11 +267,11 @@ export default function SettlementDetail() {
           <div className="stack">
             <Card title="Employee">
               {kv([
-                ['Employee', <Link to={`/hr/employees/${emp.id}`}>{emp.name} · {emp.code}</Link>],
-                ['Status', <StatusBadge status={emp.status} />],
+                ['Employee', <Link key="employee" to={`/hr/employees/${emp.id}`}>{emp.name} · {emp.code}</Link>],
+                ['Status', <StatusBadge key="status" status={emp.status} />],
                 ['Designation', `${designationName(emp.employment?.designation)} · ${emp.employment?.department || '—'} · ${emp.employment?.grade || '—'}`],
                 ['Employment', `${emp.employment?.employmentType} · ${emp.employment?.workerCategory} · joined ${fmtDate(emp.employment?.joinDate)}`],
-                ['Reporting manager', emp.employment?.reportingManagerId ? <Link to={`/hr/employees/${emp.employment.reportingManagerId}`}>{state.employees.find((e) => e.id === emp.employment.reportingManagerId)?.name || '—'}</Link> : 'None'],
+                ['Reporting manager', emp.employment?.reportingManagerId ? <Link key="reporting-manager" to={`/hr/employees/${emp.employment.reportingManagerId}`}>{state.employees.find((e) => e.id === emp.employment.reportingManagerId)?.name || '—'}</Link> : 'None'],
                 ['Bank', <>{emp.bank?.bankName || '—'} {emp.bank?.verified ? <span className="badge badge-green">verified</span> : <span className="badge badge-amber">unverified</span>}</>],
                 ['PF', emp.pf?.member ? `Member since ${fmtDate(emp.pf.joinDate)}` : 'Not a member'],
               ])}
@@ -395,7 +395,7 @@ export default function SettlementDetail() {
               ])}
             </Card>
             <Card title={showPreview ? 'Preview of the unsaved inputs' : sep.statement ? 'Frozen statement totals' : 'Live totals'}>
-              {(() => { const t = (showPreview ? preview : statement).totals; return kv([['Earnings', fmtMoney2(t.earnings)], ['Deductions', fmtMoney2(t.deductions)], ['Net payable', <span className="strong">{fmtMoney2(t.netPayable)}</span>], ['PF net', fmtMoney2(t.pfNet)], ['Total to employee', <span className="strong">{fmtMoney2(t.totalToEmployee)}</span>]]); })()}
+              {(() => { const t = (showPreview ? preview : statement).totals; return kv([['Earnings', fmtMoney2(t.earnings)], ['Deductions', fmtMoney2(t.deductions)], ['Net payable', <span key="net-payable" className="strong">{fmtMoney2(t.netPayable)}</span>], ['PF net', fmtMoney2(t.pfNet)], ['Total to employee', <span key="total-to-employee" className="strong">{fmtMoney2(t.totalToEmployee)}</span>]]); })()}
               {showPreview && <p className="small muted mt-8">Save inputs and finalise to carry these figures into the statement.</p>}
               {(showPreview ? preview : statement).flags.filter((f) => f.tone !== 'info').map((f) => <div key={f.text} className={`alert alert-${FLAG_KIND[f.tone] || 'info'} mt-8`}>{f.text}</div>)}
             </Card>
@@ -435,17 +435,17 @@ export default function SettlementDetail() {
           <div className="stack">
             <Card title="Payment">
               {kv([
-                ['Status', <StatusBadge status={sep.status} />],
+                ['Status', <StatusBadge key="status" status={sep.status} />],
                 ['Paid on', sep.payment.paidAt ? `${fmtDate(sep.payment.paidAt)} by ${sep.payment.paidBy}` : ''],
                 ['Mode / reference', sep.payment.reference ? `${sep.payment.mode} · ${sep.payment.reference}` : ''],
                 ['Amount', sep.payment.amount ? fmtMoney2(sep.payment.amount) : ''],
                 ['Payee', sep.payment.paidAt ? `${sep.payment.payee}${sep.payment.payeeName ? ` · ${sep.payment.payeeName} (${sep.payment.payeeRelation || '—'})` : ''}` : ''],
-                ['Account', sep.payment.bankAccountNo],
+                ['Account', sep.payment.paidAt ? sep.payment.bankAccountNo : ''],
                 ['PF payment', sep.payment.pfPaidAt ? `${fmtDate(sep.payment.pfPaidAt)} · ${sep.payment.pfReference || ''}` : ''],
               ])}
             </Card>
             <Card title="Certificate & exit">
-              {kv([['Service certificate', sep.serviceCertificate.issued ? <span className="badge badge-green">Issued {fmtDate(sep.serviceCertificate.issuedAt)} by {sep.serviceCertificate.by}</span> : <span className="badge badge-gray">Not issued</span>]])}
+              {kv([['Service certificate', sep.serviceCertificate.issued ? <span key="service-certificate" className="badge badge-green">Issued {fmtDate(sep.serviceCertificate.issuedAt)} by {sep.serviceCertificate.by}</span> : <span key="service-certificate" className="badge badge-gray">Not issued</span>]])}
               <div className="stack mt-8" style={{ gap: 8 }}>
                 <label className="check"><input type="checkbox" disabled={!isHrRole(role)} checked={!!sep.exitInterviewDone} onChange={(e) => patchSettlement({ exitInterviewDone: e.target.checked }, `Exit interview ${e.target.checked ? 'done' : 'pending'}`)} /> Exit interview done</label>
                 <label className="check"><input type="checkbox" disabled={!isHrRole(role)} checked={!!sep.rehireEligible} onChange={(e) => setRehire(e.target.checked)} /> Eligible for rehire</label>
@@ -485,7 +485,7 @@ export default function SettlementDetail() {
       {modal?.kind === 'pay' && <PaymentModal settlement={sep} employee={emp} onClose={() => setModal(null)} />}
       {modal?.kind === 'hold' && <ReasonModal title={`Place on hold · ${sep.code}`} confirmLabel="Place on hold" onConfirm={withReason} onClose={() => setModal(null)} />}
       {modal?.kind === 'release' && <ReasonModal title={`Release from hold · ${sep.code}`} label={`Reason (returns to ${releaseStatus(sep)})`} confirmLabel="Release" onConfirm={withReason} onClose={() => setModal(null)} />}
-      {modal?.kind === 'withdraw' && <ReasonModal title={`Withdraw separation · ${sep.code}`} label={`Reason (${emp.name} returns to ${sep.previousStatus})`} danger confirmLabel="Withdraw" onConfirm={withReason} onClose={() => setModal(null)} />}
+      {modal?.kind === 'withdraw' && <ReasonModal title={`Withdraw separation · ${sep.code}`} label={`Reason (${emp.name} returns to ${emp.status === EMPLOYEE_STATUS.SUSPENDED ? emp.status : sep.previousStatus})`} danger confirmLabel="Withdraw" onConfirm={withReason} onClose={() => setModal(null)} />}
     </div>
   );
 }

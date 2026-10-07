@@ -166,7 +166,7 @@ export default function EmployeeDetail() {
                   ['Employee code', e.code], ['Full name', e.name], ["Father's name", e.fatherName], ["Mother's name", e.motherName],
                   ['Date of birth', e.dob ? `${fmtDate(e.dob)} (${ageAt(e.dob, asOf)} years)` : ''],
                   ['Gender / marital status', `${e.gender}${e.maritalStatus ? ` · ${e.maritalStatus}` : ''}`], ['Blood group', e.bloodGroup], ['Nationality', e.nationality],
-                  ['NID', <span className="mono">{show(e.nid)}</span>], ['TIN', <span className="mono">{show(e.tin)}</span>],
+                  ['NID', <span key="nid" className="mono">{show(e.nid)}</span>], ['TIN', <span key="tin" className="mono">{show(e.tin)}</span>],
                   ['Passport', e.passportNo ? <>{<span className="mono">{show(e.passportNo)}</span>}{e.passportExpiry ? ` · expires ${fmtDate(e.passportExpiry)}` : ''}</> : ''],
                 ])}
                 {!sensitive && <p className="small muted mt-8">Identity numbers are masked for your role.</p>}
@@ -181,7 +181,7 @@ export default function EmployeeDetail() {
                 {kv([['Name', e.emergencyContact.name], ['Relation', e.emergencyContact.relation], ['Mobile', e.emergencyContact.mobile], ['Address', e.emergencyContact.address]])}
               </Card>
               <Card title="Nominee">
-                {e.nominee.name ? kv([['Name', e.nominee.name], ['Relation', e.nominee.relation], ['NID', <span className="mono">{show(e.nominee.nid)}</span>], ['Mobile', e.nominee.mobile], ['Share', e.nominee.sharePct ? `${e.nominee.sharePct}%` : '']]) : <p className="muted">No nominee recorded{pf.member ? ' (required for PF members)' : ''}.</p>}
+                {e.nominee.name ? kv([['Name', e.nominee.name], ['Relation', e.nominee.relation], ['NID', <span key="nid" className="mono">{show(e.nominee.nid)}</span>], ['Mobile', e.nominee.mobile], ['Share', e.nominee.sharePct ? `${e.nominee.sharePct}%` : '']]) : <p className="muted">No nominee recorded{pf.member ? ' (required for PF members)' : ''}.</p>}
               </Card>
               <Card title="Record">
                 {kv([['Created', `${fmtDateTime(e.createdAt)} by ${e.createdBy}`], ['Last updated', fmtDateTime(e.updatedAt)], ['Rehire eligible', e.rehireEligible ? 'Yes' : 'No'], ['Documents', `${e.documents.filter((d) => d.current).length} current${ins.docsMissing.length ? ` · missing ${ins.docsMissing.join(', ')}` : ''}`]])}
@@ -199,7 +199,7 @@ export default function EmployeeDetail() {
                   ['Joining date', emp.joinDate ? `${fmtDate(emp.joinDate)} · service ${ins.serviceText}` : ''],
                   ['Confirmation date', emp.confirmationDate ? fmtDate(emp.confirmationDate) : ''],
                   ['Contract end', emp.employmentType === 'Contractual' ? fmtDate(emp.contractEndDate) : ''],
-                  ['Reporting manager', manager ? <Link to={`/hr/employees/${manager.id}`}>{manager.name} · {designationName(manager.employment.designation)}</Link> : emp.designation === 'MD' ? 'Board' : ''],
+                  ['Reporting manager', manager ? <Link key="reporting-manager" to={`/hr/employees/${manager.id}`}>{manager.name} · {designationName(manager.employment.designation)}</Link> : emp.designation === 'MD' ? 'Board' : ''],
                   ['Work location', emp.workLocation],
                   ['Retirement date', e.dob ? `${fmtDate(retirementDate(e, settings))} (age ${settings.statutory?.retirementAge}, s.28)` : ''],
                 ])}
@@ -238,8 +238,8 @@ export default function EmployeeDetail() {
               <Card title="Bank account" actions={isHrRole(role) && !b.verified && b.accountNo && <button className="btn btn-sm" onClick={markBankVerified}>Mark verified</button>}>
                 {kv([
                   ['Bank', b.bankName ? `${b.bankName}${b.branch ? `, ${b.branch}` : ''}` : ''], ['Account type', b.accountType], ['Account name', b.accountName],
-                  ['Account number', <span className="mono">{show(b.accountNo)}</span>], ['Routing no.', b.routingNo],
-                  ['Status', b.verified ? <><span className="badge badge-green">Verified</span> <span className="small muted">by {b.verifiedBy}{b.verifiedAt ? ` · ${fmtDate(b.verifiedAt)}` : ''}</span></> : <span className="badge badge-gray">Unverified</span>],
+                  ['Account number', <span key="account-number" className="mono">{show(b.accountNo)}</span>], ['Routing no.', b.routingNo],
+                  ['Status', b.verified ? <><span className="badge badge-green">Verified</span> <span className="small muted">by {b.verifiedBy}{b.verifiedAt ? ` · ${fmtDate(b.verifiedAt)}` : ''}</span></> : <span key="status" className="badge badge-gray">Unverified</span>],
                 ])}
               </Card>
               <Card title="Provident fund">
@@ -390,7 +390,7 @@ export default function EmployeeDetail() {
                     ['Type', `${settlement.type} (${SEPARATION_SECTIONS[settlement.type] || ''})`], ['Reason', settlement.reason],
                     ['Notice date', fmtDate(settlement.noticeDate)], ['Last working day', fmtDate(settlement.lastWorkingDay)],
                     ['Notice required', `${settlement.noticeRequiredDays} day(s)${num(settlement.noticeWaivedDays) ? ` · ${settlement.noticeWaivedDays} waived` : ''}`],
-                    ['Settlement status', <StatusBadge status={settlement.status} />],
+                    ['Settlement status', <StatusBadge key="settlement-status" status={settlement.status} />],
                     ['Deadline', (() => { const d = settlementDeadlineOf(settlement, settings); const days = daysUntilAsOf(d, asOf); return <>{fmtDate(d)} {!['Paid', 'Withdrawn'].includes(settlement.status) && days != null && days < 0 && <span className="badge badge-red">{-days} days overdue</span>}</>; })()],
                     ['Clearance', `${settlement.clearance.filter((c) => c.status !== 'Pending').length} of ${settlement.clearance.length} signed`],
                     ...(sensitive && settlement.statement ? [['Net payable', fmtMoney2(settlement.statement.totals?.netPayable)], ['Total to employee (incl. PF)', fmtMoney2(settlement.statement.totals?.totalToEmployee)]] : []),

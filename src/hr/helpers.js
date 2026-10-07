@@ -2,7 +2,7 @@
 // insights. Settlement and appraisal arithmetic live in ./settlementCalc and
 // ./appraisalCalc and are re-exported here so pages import only this module.
 import { ACTIVE_EMPLOYEE_STATUSES, APPRAISAL_OPEN, DEFAULT_HR_SETTINGS, EMPLOYEE_STATUS, EXPIRING_EMPLOYEE_DOCS, HR_ROLES, HR_STAFF_ROLES, LEAVE_STATUS, REQUIRED_EMPLOYEE_DOCS, SETTLEMENT_OPEN, canHr, designationOf } from './config.js';
-import { addMonths, fmtDate, normalizeId, normalizePhone, nowIso, uid } from '../utils/helpers.js';
+import { addMonths, fmtDate, localDate, normalizeId, normalizePhone, nowIso, uid } from '../utils/helpers.js';
 import { daysBetween, grossSalary, lastMonths, localToday, mySettlementQueue, num, serviceLength, settlementDeadline, workingDaysBetween } from './settlementCalc.js';
 import { activeDisciplinary, appraisalOverdue, appraisalOwner, attendanceSummary, myAppraisalQueue, probationEndDate } from './appraisalCalc.js';
 
@@ -297,7 +297,8 @@ export const hrReminders = (state, user, asOf, windowDays = 60) => {
     if (emp?.status === EMPLOYEE_STATUS.NOTICE && s.lastWorkingDay <= asOf) push({ kind: 'exitDatePassed', tone: 'warn', text: `${emp.name}: last working day ${fmtDate(s.lastWorkingDay)} has passed; confirm the exit.`, to: `/hr/employees/${emp.id}`, employeeId: emp.id, days: daysUntilAsOf(s.lastWorkingDay, asOf) });
   });
   (state.leaveRequests || []).filter((r) => r.status === LEAVE_STATUS.PENDING).forEach((r) => {
-    const since = String(r.requestedAt || '').slice(0, 10);
+    const raw = String(r.requestedAt || '');
+    const since = raw.length > 10 ? localDate(raw) : raw;
     const wd = since ? workingDaysBetween(since, asOf, settings.calendar) - 1 : 0;
     if (wd > 3) { const emp = employees.find((e) => e.id === r.employeeId); push({ kind: 'leavePending', tone: 'warn', text: `${r.code} (${emp?.name || ''}): leave request pending for ${wd} working days.`, to: `/hr/leave?status=Pending`, employeeId: r.employeeId, days: -wd }); }
   });

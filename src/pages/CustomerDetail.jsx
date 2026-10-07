@@ -212,12 +212,12 @@ export default function CustomerDetail() {
                   ['Mobile', <>{c.mobile} {c.mobileVerified ? <span className="badge badge-green">OTP verified</span> : <span className="badge badge-amber">unverified</span>}</>],
                   ['Alternate mobile', c.altMobile],
                   ['Email', <>{c.email || '—'} {c.email && (c.emailVerified ? <span className="badge badge-green">verified</span> : <span className="badge badge-gray">unverified</span>)}</>],
-                  ['Completeness', <div className="row"><div style={{ width: 140 }}><Progress value={pct} /></div><span className="small">{pct}%</span></div>],
+                  ['Completeness', <div key="pct" className="row"><div style={{ width: 140 }}><Progress value={pct} /></div><span className="small">{pct}%</span></div>],
                 ])}
               </Card>
               <Card title="Identity & business verification">
                 {kv([
-                  ['ID type', c.identity.idType], ['ID number', <span className="mono">{show(c.identity.idNumber)}</span>], ['Name on ID', c.identity.idName],
+                  ['ID type', c.identity.idType], ['ID number', <span key="id" className="mono">{show(c.identity.idNumber)}</span>], ['Name on ID', c.identity.idName],
                   ['Date of birth', c.identity.dob ? fmtDate(c.identity.dob) : ''], ["Father's / spouse's name", c.identity.fatherName],
                   ['Trade license', c.business.tradeLicenseNo ? `${c.business.tradeLicenseNo}${c.business.tradeLicenseExpiry ? ` (expires ${fmtDate(c.business.tradeLicenseExpiry)})` : ''}` : ''],
                   ['TIN', show(c.business.tin)], ['BIN', show(c.business.bin)], ['Registration', c.business.regNo ? `${c.business.regNo} · ${fmtDate(c.business.regDate)}` : ''],
@@ -227,10 +227,10 @@ export default function CustomerDetail() {
               </Card>
               <Card title="Outlet location">
                 {kv([
-                  ['Coordinates', c.location.lat ? <a href={`https://www.google.com/maps?q=${c.location.lat},${c.location.lng}`} target="_blank" rel="noreferrer">{c.location.lat}, {c.location.lng}</a> : ''],
+                  ['Coordinates', c.location.lat ? <a key="map" href={`https://www.google.com/maps?q=${c.location.lat},${c.location.lng}`} target="_blank" rel="noreferrer">{c.location.lat}, {c.location.lng}</a> : ''],
                   ['Outlet address', c.location.outletAddress], ['Field visit', c.location.visitDate ? `${fmtDate(c.location.visitDate)} by ${c.location.visitedBy || '—'}` : ''],
                   ['Findings', c.location.findings],
-                  ['Location verified', c.location.verified ? <span className="badge badge-green">Yes</span> : <span className="badge badge-gray">Not yet</span>],
+                  ['Location verified', c.location.verified ? <span key="lv" className="badge badge-green">Yes</span> : <span key="lv" className="badge badge-gray">Not yet</span>],
                 ])}
               </Card>
               <Card title={`Bank / payment accounts (${c.bankAccounts.length})`}>

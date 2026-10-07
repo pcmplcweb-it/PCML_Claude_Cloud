@@ -1,7 +1,7 @@
 // Regression fixtures for the HR formulas (spec section I). Absolute dates,
 // independent of the seed; run in DEV from main.jsx and from HR Settings.
 import { DEFAULT_HR_SETTINGS, DEFAULT_KPI_TEMPLATES, DEFAULT_LEAVE_TYPES } from './config.js';
-import { addWorkingDays, attendanceKpi, buildAppraisal, completedYears, computeAppraisalScore, computeSettlement, countLeaveDays, emptyEmployee, emptySettlement, estimateTds, migrateEmployee, requiresManagementApproval, resignationTier, serviceLength, statementLine } from './helpers.js';
+import { addWorkingDays, attendanceKpi, buildAppraisal, completedYears, computeAppraisalScore, computeSettlement, countLeaveDays, emptyEmployee, emptySettlement, estimateTds, exitElBalance, migrateEmployee, requiresManagementApproval, resignationTier, serviceLength, statementLine, validatePayment, validateSeparation } from './helpers.js';
 
 const S = DEFAULT_HR_SETTINGS;
 const CLOCK = '2026-10-06';
@@ -253,6 +253,21 @@ export const runHrSelfTest = () => {
   check('I.7 addWorkingDays 2026-10-20 + 30', '2026-12-01', addWorkingDays('2026-10-20', 30, { weeklyOffs: ['Fri', 'Sat'], holidays: [] }).date);
   check('I.7 countLeaveDays Sun–Thu', 5, countLeaveDays('2026-10-11', '2026-10-15', false, S.calendar, DEFAULT_LEAVE_TYPES[0]));
   check('I.7 countLeaveDays maternity (calendar days)', 112, countLeaveDays('2026-01-01', '2026-04-22', false, S.calendar, DEFAULT_LEAVE_TYPES[3]));
+
+  // I.8 Separation guards, nil payment, EL pro-rated on exit
+  const enq = (outcome) => ({ ...belal, status: 'Confirmed', disciplinary: [{ id: 'fx_enq', type: 'Dismissal Enquiry', date: '2026-06-01', showCauseDate: '2026-05-20', enquiryDate: '2026-06-01', outcome }] });
+  const dis = { ...stlBelal, id: 'fx_stl_dis', type: 'Dismissal', misconductClause: 'a', status: 'Initiated' };
+  const enqErr = (outcome) => validateSeparation(dis, enq(outcome), S, CLOCK).some((x) => x.startsWith('Dismissal requires'));
+  check('I.8 dismissal enquiry outcome Upheld / open / Exonerated / Withdrawn', [false, false, true, true], ['Upheld', '', 'Exonerated', 'Withdrawn'].map(enqErr));
+  const nil = { paidAt: '2026-10-01', mode: 'Bank Transfer', reference: 'REC/01', amount: '0', bankAccountNo: '', payee: 'Employee' };
+  check('I.8 nil payment allowed only when net ≤ 0', [0, 0, 1, 1], [validatePayment(nil, -5000, CLOCK).length, validatePayment(nil, 0, CLOCK).length, validatePayment(nil, 1000, CLOCK).length, validatePayment({ ...nil, amount: '-1' }, -5000, CLOCK).length]);
+  check('I.8 positive payment needs bank account', 1, validatePayment({ ...nil, amount: '1000' }, 1000, CLOCK).length);
+  const elT = DEFAULT_LEAVE_TYPES.find((t) => t.code === 'EL');
+  const elEmp = { ...belal, status: 'Confirmed', leave: { ...belal.leave, opening: { EL: '10' } } };
+  const pro = withSettings({ leave: { prorateOnExit: true } });
+  check('I.8 EL on exit 10 + 20 (pro-rate off) / 10 + 20×4/12 (on)', [30, 16.5], [exitElBalance(elEmp, elT, 2026, [], S, CLOCK, [], '2026-04-15'), exitElBalance(elEmp, elT, 2026, [], pro, CLOCK, [], '2026-04-15')]);
+  const joiner = { ...elEmp, employment: { ...elEmp.employment, joinDate: '2025-03-10' }, leave: { ...elEmp.leave, opening: {} } };
+  check('I.8 EL pro-rate for a mid-year eligible joiner (16.5 × 5/10)', 8.5, exitElBalance(joiner, elT, 2026, [], pro, CLOCK, [], '2026-07-31'));
 
   return { pass: results.every((x) => x.ok), results };
 };

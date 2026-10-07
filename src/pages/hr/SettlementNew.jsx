@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Alert, Field } from '../../components/ui';
 import { EMPLOYEE_STATUS, EMPLOYER_INITIATED, MISCONDUCT_CLAUSES, RELATIONS, SEPARATION_SECTIONS, SEPARATION_TYPES, canHr } from '../../hr/config';
-import { addDays, computeSettlement, continuousServiceCheck, daysBetween, designationName, emptySettlement, fmtMoney2, fmtNum2, hrToday, leaveBalance, noticeRequiredDays, effectiveNoticeServed, retirementDate, separationWarnings, settlementDeadline, settlementInputsFrom, validateSeparation, visibleEmployees } from '../../hr/helpers';
+import { addDays, computeSettlement, continuousServiceCheck, daysBetween, designationName, dismissalEnquiryOf, emptySettlement, fmtMoney2, fmtNum2, exitElBalance, hrToday, noticeRequiredDays, effectiveNoticeServed, retirementDate, separationWarnings, settlementDeadline, settlementInputsFrom, validateSeparation, visibleEmployees } from '../../hr/helpers';
 import { useStore } from '../../store/StoreContext';
 import { fmtDate } from '../../utils/helpers';
 
@@ -39,7 +39,9 @@ export default function SettlementNew() {
   // Active employees in scope without an open separation.
   const candidates = useMemo(() => visibleEmployees(state.employees, currentUser).filter((e) => SEPARABLE.includes(e.status) && !e.separationId).sort((a, b) => a.name.localeCompare(b.name)), [state.employees, currentUser]);
   const elType = state.leaveTypes.find((t) => t.code === 'EL');
-  const elBalanceOf = (emp) => (emp && elType ? leaveBalance(emp, elType, settings.leave.year, state.leaveRequests, settings, asOf, state.attendance).balance : null);
+  // Pro-rated to the LWD when leave.prorateOnExit is on.
+  const elBalanceOf = (emp, lwd) => exitElBalance(emp, elType, settings.leave.year, state.leaveRequests, settings, asOf, state.attendance, lwd);
+  const elDaysOf = (emp, lwd) => settlementInputsFrom(emp, { elBalance: elBalanceOf(emp, lwd) }).elBalanceDays;
 
   // Notice days from the Act for the current type and flags; LWD follows the notice unless retiring.
   const withNotice = (s, emp) => {
@@ -50,7 +52,8 @@ export default function SettlementNew() {
   };
   const fresh = (emp, type, probation) => {
     const base = emptySettlement(emp, by, settings, asOf);
-    return withNotice({ ...base, type: type || base.type, probationer: probation || base.probationer, inputs: emp ? settlementInputsFrom(emp, { elBalance: elBalanceOf(emp) }) : base.inputs }, emp);
+    const s = withNotice({ ...base, type: type || base.type, probationer: probation || base.probationer }, emp);
+    return { ...s, inputs: emp ? settlementInputsFrom(emp, { elBalance: elBalanceOf(emp, s.lastWorkingDay) }) : base.inputs };
   };
 
   const [sep, setSep] = useState(() => fresh(candidates.find((e) => e.id === params.get('employee')) || null, SEPARATION_TYPES.includes(params.get('type')) ? params.get('type') : '', params.get('probation') === '1'));
@@ -77,7 +80,9 @@ export default function SettlementNew() {
 
   const set = (patch) => setSep((prev) => ({ ...prev, ...patch }));
   const setIn = (patch) => setSep((prev) => ({ ...prev, inputs: { ...prev.inputs, ...patch } }));
-  const setNotice = (patch) => setSep((prev) => withNotice({ ...prev, ...patch }, emp));
+  // A new LWD re-prefills the EL days unless they were edited by hand.
+  const withLwd = (prev, next) => (emp && next.lastWorkingDay !== prev.lastWorkingDay && prev.inputs.elBalanceDays === elDaysOf(emp, prev.lastWorkingDay) ? { ...next, inputs: { ...next.inputs, elBalanceDays: elDaysOf(emp, next.lastWorkingDay) } } : next);
+  const setNotice = (patch) => setSep((prev) => withLwd(prev, withNotice({ ...prev, ...patch }, emp)));
   const pickEmployee = (id) => {
     const e = candidates.find((x) => x.id === id) || null;
     setSep((prev) => ({ ...fresh(e, prev.type, prev.probationer && e?.status === EMPLOYEE_STATUS.PROBATION), reason: prev.reason }));
@@ -89,8 +94,8 @@ export default function SettlementNew() {
   const shortfall = RESIGNATION_TYPES.includes(sep.type) ? Math.max(0, required - served - n(sep.noticeWaivedDays)) : 0;
   const deadline = settlementDeadline(sep.lastWorkingDay, settings);
   const employer = EMPLOYER_INITIATED.includes(sep.type);
-  const enquiry = (emp?.disciplinary || []).find((d) => d.type === 'Dismissal Enquiry' && d.showCauseDate && d.enquiryDate);
-  const elBalance = elBalanceOf(emp);
+  const enquiry = dismissalEnquiryOf(emp);
+  const elBalance = elBalanceOf(emp, sep.lastWorkingDay);
 
   const initiate = () => {
     setSubmitted(true);
@@ -150,7 +155,7 @@ export default function SettlementNew() {
               {emp && (
                 <div className="span-3">
                   {kv([
-                    ['Employee', <Link to={`/hr/employees/${emp.id}`}>{emp.name} · {emp.code}</Link>],
+                    ['Employee', <Link key="employee" to={`/hr/employees/${emp.id}`}>{emp.name} · {emp.code}</Link>],
                     ['Designation / department', `${designationName(emp.employment?.designation)} · ${emp.employment?.department || '—'} · ${emp.employment?.grade || '—'}`],
                     ['Employment', `${emp.employment?.employmentType} · ${emp.employment?.workerCategory} · ${emp.employment?.wageBasis}-rated · joined ${fmtDate(emp.employment?.joinDate)}`],
                     ['Status', emp.status],
@@ -176,7 +181,7 @@ export default function SettlementNew() {
               {sep.type === 'Dismissal' && (
                 <>
                   <Field label="Misconduct clause (s.23(4))" required><select value={sep.misconductClause} onChange={(e) => set({ misconductClause: e.target.value })}>{MISCONDUCT_CLAUSES.map((c) => <option key={c} value={c}>{c || '— select —'}</option>)}</select></Field>
-                  <div className="span-2">{enquiry ? <Alert kind="success">Dismissal Enquiry on record: show-cause {fmtDate(enquiry.showCauseDate)}, enquiry {fmtDate(enquiry.enquiryDate)}.</Alert> : <Alert kind="danger">No Dismissal Enquiry record with show-cause and enquiry dates (s.24). Record it on the employee's Discipline tab first.</Alert>}</div>
+                  <div className="span-2">{enquiry ? <Alert kind="success">Dismissal Enquiry on record: show-cause {fmtDate(enquiry.showCauseDate)}, enquiry {fmtDate(enquiry.enquiryDate)}.</Alert> : <Alert kind="danger">No Dismissal Enquiry record with show-cause and enquiry dates, not exonerated or withdrawn (s.24). Record it on the employee's Discipline tab first.</Alert>}</div>
                 </>
               )}
               {sep.type === 'Death' && (
@@ -195,7 +200,7 @@ export default function SettlementNew() {
           {step === 1 && (
             <div className="form-grid cols-3">
               <Field label={sep.type === 'Death' ? 'Date of death' : 'Notice date'} required><input type="date" value={sep.noticeDate} onChange={(e) => setNotice({ noticeDate: e.target.value })} /></Field>
-              <Field label="Last working day" required hint={sep.type === 'Retirement' && emp?.dob ? `Prefilled from the ${settings.statutory.retirementAge}th birthday: ${fmtDate(retirementDate(emp, settings))}` : `Default: notice date + ${required} days`}><input type="date" value={sep.lastWorkingDay} onChange={(e) => set({ lastWorkingDay: e.target.value })} /></Field>
+              <Field label="Last working day" required hint={sep.type === 'Retirement' && emp?.dob ? `Prefilled from the ${settings.statutory.retirementAge}th birthday: ${fmtDate(retirementDate(emp, settings))}` : `Default: notice date + ${required} days`}><input type="date" value={sep.lastWorkingDay} onChange={(e) => setSep((prev) => withLwd(prev, { ...prev, lastWorkingDay: e.target.value }))} /></Field>
               <Field label="Notice waived (days)" hint="Days the employer waives from the shortfall"><input type="number" min="0" value={sep.noticeWaivedDays} onChange={(e) => set({ noticeWaivedDays: e.target.value })} /></Field>
               <div className="span-3">
                 {kv([
@@ -223,7 +228,7 @@ export default function SettlementNew() {
               <div>
                 <h3 className="mb-8">Earnings</h3>
                 <div className="form-grid cols-3">
-                  {num('Earned leave balance (days)', 'elBalanceDays', elBalance == null ? 'Encashed at the gross daily rate (s.11, s.119)' : `Balance on record: ${fmtNum2(elBalance)} days for ${settings.leave.year}`)}
+                  {num('Earned leave balance (days)', 'elBalanceDays', elBalance == null ? 'Encashed at the gross daily rate (s.11, s.119)' : `Balance on record: ${fmtNum2(elBalance)} days for ${settings.leave.year}${settings.leave.prorateOnExit ? ' (accrual pro-rated to the LWD)' : ''}`)}
                   {num('Salary arrears (BDT)', 'arrears')}
                   {num('Overtime dues (BDT)', 'overtime', 's.108')}
                   {num('Expense reimbursement (BDT)', 'reimbursement')}

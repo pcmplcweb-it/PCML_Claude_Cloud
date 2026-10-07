@@ -81,6 +81,24 @@ export const leaveBalance = (emp, typeCfg, year, requests = [], settings, asOf, 
 export const allLeaveBalances = (emp, leaveTypes = [], year, requests, settings, asOf, attendance) =>
   leaveTypes.map((t) => ({ type: t, ...leaveBalance(emp, t, year, requests, settings, asOf, attendance) }));
 
+// EL balance for the exit statement. With leave.prorateOnExit, the current year's annual EL accrual is cut to the
+// months served (eligibility month to LWD month, both counted); opening/carried-forward days are untouched.
+// Per-days-worked accrual already tracks service, and an LWD outside the leave year leaves the entitlement as is.
+export const exitElBalance = (emp, typeCfg, year, requests, settings, asOf, attendance, lwd) => {
+  if (!emp || !typeCfg) return null;
+  let e = emp;
+  const ent = leaveEntitlement(emp, typeCfg, year, settings, attendance);
+  if (settings?.leave?.prorateOnExit && settings.leave.elAccrual !== 'perDaysWorked' && ent != null && lwd && lwd.slice(0, 4) === String(year)) {
+    const join = emp.employment?.joinDate;
+    const elig = join ? addMonths(join, num(typeCfg.minServiceMonths)) : '';
+    const from = elig > `${year}-01-01` ? Number(elig.slice(5, 7)) : 1;
+    const served = Math.max(0, Number(lwd.slice(5, 7)) - from + 1);
+    const prorated = roundHalf(ent * served / (13 - from));
+    e = { ...emp, leave: { ...emp.leave, entitlementOverride: { ...(emp.leave?.entitlementOverride || {}), [typeCfg.code]: String(prorated) } } };
+  }
+  return leaveBalance(e, typeCfg, year, requests, settings, asOf, attendance).balance;
+};
+
 export const leaveApproverFor = (emp) => emp?.employment?.reportingManagerId || '';
 
 export const validateLeaveRequest = (req, emp, typeCfg, balance, requests = [], calendar) => {

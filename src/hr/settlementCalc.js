@@ -176,7 +176,7 @@ export const emptySettlement = (emp, by, settings, asOf) => ({
   statement: null,
   inputsChangedAt: '',
   approvals: [],
-  payment: { paidAt: '', mode: 'Bank Transfer', reference: '', amount: '', bankAccountNo: emp?.bank?.accountNo || '', payee: 'Employee', payeeName: '', payeeRelation: '', payeeNid: '', pfPaidAt: '', pfReference: '', paidBy: '' },
+  payment: { paidAt: '', mode: 'Bank Transfer', reference: '', amount: '', bankAccountNo: '', payee: 'Employee', payeeName: '', payeeRelation: '', payeeNid: '', pfPaidAt: '', pfReference: '', paidBy: '' },
   serviceCertificate: { issued: false, issuedAt: '', by: '' },
   exitInterviewDone: false,
   rehireEligible: true,
@@ -268,6 +268,23 @@ export const settlementInputsFrom = (emp, ctx = {}) => ({
 
 export const ageAt = (dob, date) => (dob && date ? serviceLength(dob, date, false).years : null);
 
+// A Dismissal Enquiry with both s.24 dates whose outcome does not clear the employee.
+export const dismissalEnquiryOf = (emp) => (emp?.disciplinary || []).find((d) => d.type === 'Dismissal Enquiry' && d.showCauseDate && d.enquiryDate && !['Exonerated', 'Withdrawn'].includes(d.outcome));
+
+// Pay modal checks; a zero payout is allowed only when net payable is nil or negative (balance recoverable from the employee).
+export const validatePayment = (f, netPayable, asOf) => {
+  const e = [];
+  const amt = f.amount === '' || f.amount == null ? NaN : Number(f.amount);
+  if (!f.paidAt) e.push('Enter the payment date.');
+  else if (asOf && f.paidAt > asOf) e.push('Payment date cannot be in the future.');
+  if (!String(f.reference || '').trim()) e.push(num(f.amount) === 0 ? 'Enter a reference (recovery memo / voucher number).' : 'Enter the payment reference (transfer / cheque number).');
+  if (Number.isNaN(amt) || amt < 0) e.push('Enter the amount paid.');
+  else if (amt === 0 && !(netPayable !== '' && netPayable != null && num(netPayable) <= 0)) e.push('Enter the amount paid; a nil payment is allowed only when the net payable is nil or negative.');
+  if (f.payee === 'Nominee' && !String(f.payeeName || '').trim()) e.push('Enter the nominee name.');
+  if (f.mode === 'Bank Transfer' && amt > 0 && !String(f.bankAccountNo || '').trim()) e.push('Enter the bank account credited.');
+  return e;
+};
+
 export const validateSeparation = (sep, emp, settings, asOf, settlements = []) => {
   const e = [];
   if (!emp) { e.push('Select an employee.'); return e; }
@@ -278,8 +295,7 @@ export const validateSeparation = (sep, emp, settings, asOf, settlements = []) =
   if (![EMPLOYEE_STATUS.PROBATION, EMPLOYEE_STATUS.CONFIRMED, EMPLOYEE_STATUS.SUSPENDED].includes(emp.status)) e.push(`Employee is ${emp.status}; only active employees can be separated.`);
   if (settlements.some((s) => s.id !== sep.id && s.employeeId === emp.id && SETTLEMENT_OPEN.includes(s.status))) e.push('An open settlement already exists for this employee.');
   if (sep.type === 'Dismissal') {
-    const enquiry = (emp.disciplinary || []).find((d) => d.type === 'Dismissal Enquiry' && d.showCauseDate && d.enquiryDate);
-    if (!enquiry) e.push('Dismissal requires a Dismissal Enquiry record with show-cause and enquiry dates (s.24).');
+    if (!dismissalEnquiryOf(emp)) e.push('Dismissal requires a Dismissal Enquiry record with show-cause and enquiry dates, not exonerated or withdrawn (s.24).');
     if (!sep.misconductClause) e.push('Select the s.23(4) misconduct clause for a dismissal.');
   }
   if (sep.type === 'Death') {

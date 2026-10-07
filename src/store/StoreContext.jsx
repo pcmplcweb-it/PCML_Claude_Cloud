@@ -217,8 +217,12 @@ function reducer(state, a) {
         next.activatedAt = next.activatedAt || nowIso();
         if (current.terms?.status === TERMS_STATUS.SUSPENDED) next.terms = { ...current.terms, status: TERMS_STATUS.APPROVED };
       }
-      if ([SUPPLIER_STATUS.SUSPENDED, SUPPLIER_STATUS.BLACKLISTED].includes(a.status) && current.terms?.status === TERMS_STATUS.APPROVED) {
-        next.terms = { ...current.terms, status: a.status === SUPPLIER_STATUS.BLACKLISTED ? TERMS_STATUS.DECLINED : TERMS_STATUS.SUSPENDED, decisionBy: a.by, decisionAt: nowIso(), decisionNote: `${a.status}: ${a.reason || ''}` };
+      if (a.status === SUPPLIER_STATUS.SUSPENDED && current.terms?.status === TERMS_STATUS.APPROVED) {
+        next.terms = { ...current.terms, status: TERMS_STATUS.SUSPENDED, decisionBy: a.by, decisionAt: nowIso(), decisionNote: `${a.status}: ${a.reason || ''}` };
+      }
+      // Blacklisting withdraws terms in any live state, including ones already suspended or still pending.
+      if (a.status === SUPPLIER_STATUS.BLACKLISTED && [TERMS_STATUS.REQUESTED, TERMS_STATUS.UNDER_REVIEW, TERMS_STATUS.APPROVED, TERMS_STATUS.SUSPENDED].includes(current.terms?.status)) {
+        next.terms = { ...current.terms, status: TERMS_STATUS.DECLINED, approvedCap: '', decisionBy: a.by, decisionAt: nowIso(), decisionNote: `${a.status}: ${a.reason || ''}` };
       }
       if (a.status === SUPPLIER_STATUS.REJECTED && [TERMS_STATUS.REQUESTED, TERMS_STATUS.UNDER_REVIEW, TERMS_STATUS.APPROVED].includes(current.terms?.status)) {
         next.terms = { ...current.terms, status: TERMS_STATUS.DECLINED, approvedCap: '', decisionBy: a.by, decisionAt: nowIso(), decisionNote: 'Supplier application rejected' };
@@ -445,7 +449,8 @@ function reducer(state, a) {
       const emp = empOf(state, a.settlement.employeeId);
       if (!emp) return state;
       const at = nowIso();
-      const sep = pushHistory({ ...a.settlement, code: a.settlement.code || nextSettlementCode(state.settlements), status: SETTLEMENT_STATUS.INITIATED, createdAt: a.settlement.createdAt || at, updatedAt: at, inputsChangedAt: at }, SETTLEMENT_STATUS.INITIATED, a.by, a.settlement.reason || '');
+      // prevRehireEligible: the employee's flag before initiation, restored on withdrawal.
+      const sep = pushHistory({ ...a.settlement, prevRehireEligible: emp.rehireEligible !== false, code: a.settlement.code || nextSettlementCode(state.settlements), status: SETTLEMENT_STATUS.INITIATED, createdAt: a.settlement.createdAt || at, updatedAt: at, inputsChangedAt: at }, SETTLEMENT_STATUS.INITIATED, a.by, a.settlement.reason || '');
       const next = pushStatusHistory({ ...emp, status: EMPLOYEE_STATUS.NOTICE, statusReason: `${sep.type}: LWD ${sep.lastWorkingDay}`, separationId: sep.id, rehireEligible: sep.rehireEligible !== false, updatedAt: at }, EMPLOYEE_STATUS.NOTICE, a.by, sep.type);
       let log = hrAudit(state, next, 'Separation Initiated', a.by, `${sep.code}: ${sep.type}, LWD ${sep.lastWorkingDay}`, sep);
       // Open appraisals are cancelled unless the employee serves most of the period (pro-rata rule, A.2 #25).
@@ -502,7 +507,9 @@ function reducer(state, a) {
           log = hrAudit({ audit: log }, left, 'Exit Completed', a.by, `${next.code}: last working day ${lwd}`, next);
         }
         if (a.status === S.WITHDRAWN) {
-          const back = pushStatusHistory({ ...emp, status: next.previousStatus || EMPLOYEE_STATUS.CONFIRMED, statusReason: '', separationId: '', updatedAt: at }, next.previousStatus || EMPLOYEE_STATUS.CONFIRMED, a.by, 'Separation withdrawn');
+          // Undo initiation: a suspension imposed since stays; rehire flag and exit date revert.
+          const to = emp.status === EMPLOYEE_STATUS.SUSPENDED ? EMPLOYEE_STATUS.SUSPENDED : next.previousStatus || EMPLOYEE_STATUS.CONFIRMED;
+          const back = pushStatusHistory({ ...emp, status: to, statusReason: to === emp.status ? emp.statusReason : '', separationId: '', separatedAt: '', ...('prevRehireEligible' in next ? { rehireEligible: next.prevRehireEligible } : {}), updatedAt: at }, to, a.by, 'Separation withdrawn');
           employees = replaceIn(employees, back);
           log = hrAudit({ audit: log }, back, 'Separation Withdrawn', a.by, `${next.code}: ${note}`, next);
         }

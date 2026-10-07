@@ -3,7 +3,7 @@
 // store access and dispatches on confirm, like the quick-action modals.
 import { useState } from 'react';
 import { CLEARANCE_STATUS, PAY_MODES, RELATIONS, SETTLEMENT_STATUS } from '../hr/config';
-import { canApproveStage, canSignClearance, fmtMoney2, hrToday, nextSettlementStatus, nowIso, requiresManagementApproval, settlementDeadlineOf } from '../hr/helpers';
+import { canApproveStage, canSignClearance, fmtMoney2, hrToday, nextSettlementStatus, nowIso, requiresManagementApproval, settlementDeadlineOf, validatePayment } from '../hr/helpers';
 import { useStore } from '../store/StoreContext';
 import { fmtDate } from '../utils/helpers';
 import { Alert, Field, Modal } from './ui';
@@ -115,8 +115,9 @@ export function PaymentModal({ settlement: sep, employee: emp, onClose }) {
   const [f, setF] = useState(() => ({
     ...sep.payment,
     paidAt: sep.payment.paidAt || asOf,
-    amount: sep.payment.amount || (net === '' ? '' : String(net)),
-    bankAccountNo: sep.payment.bankAccountNo || emp?.bank?.accountNo || '',
+    amount: sep.payment.amount || (net === '' ? '' : String(Math.max(0, n(net)))),
+    // Current account on the employee record, not a snapshot taken at initiation.
+    bankAccountNo: emp?.bank?.accountNo || sep.payment.bankAccountNo || '',
     payee: death ? 'Nominee' : sep.payment.payee || 'Employee',
     payeeName: sep.payment.payeeName || (death ? sep.nominee?.name || emp?.nominee?.name || '' : ''),
     payeeRelation: sep.payment.payeeRelation || (death ? sep.nominee?.relation || emp?.nominee?.relation || '' : ''),
@@ -129,12 +130,8 @@ export function PaymentModal({ settlement: sep, employee: emp, onClose }) {
 
   const pay = () => {
     if (!gate.ok) { notify(gate.reason, 'error'); return; }
-    if (!f.paidAt) { notify('Enter the payment date.', 'error'); return; }
-    if (f.paidAt > asOf) { notify('Payment date cannot be in the future.', 'error'); return; }
-    if (!f.reference.trim()) { notify('Enter the payment reference (transfer / cheque number).', 'error'); return; }
-    if (n(f.amount) <= 0) { notify('Enter the amount paid.', 'error'); return; }
-    if (f.payee === 'Nominee' && !f.payeeName.trim()) { notify('Enter the nominee name.', 'error'); return; }
-    if (f.mode === 'Bank Transfer' && !f.bankAccountNo.trim()) { notify('Enter the bank account credited.', 'error'); return; }
+    const errs = validatePayment(f, net, asOf);
+    if (errs.length) { notify(errs[0], 'error'); return; }
     const payment = { ...f, reference: f.reference.trim(), amount: String(n(f.amount)), paidBy: by };
     dispatch({ type: 'SETTLEMENT_TRANSITION', id: sep.id, status: SETTLEMENT_STATUS.PAID, by, label: 'Settlement Paid', patch: { payment }, detail: `${fmtMoney2(payment.amount)} by ${f.mode} ref ${payment.reference}`, asOf });
     notify(`${sep.code} marked paid.`);
@@ -145,13 +142,14 @@ export function PaymentModal({ settlement: sep, employee: emp, onClose }) {
     <Modal title={`Record payment · ${sep.code} · ${emp?.name || ''}`} onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn btn-success" disabled={!gate.ok} onClick={pay}>Record payment</button></>}>
       {!gate.ok && <Alert kind="warn">{gate.reason}</Alert>}
       {deadline && f.paidAt > deadline && <Alert kind="warn">Payment date is after the statutory deadline {fmtDate(deadline)} (30 working days, s.123).</Alert>}
+      {net !== '' && n(net) <= 0 && <Alert kind="info">Net payable is {fmtMoney2(net)}: nothing is due to the {death ? 'nominee' : 'employee'}{n(net) < 0 ? `; ${fmtMoney2(-n(net))} is recoverable from the employee` : ''}. Record a nil payment with a recovery memo as the reference.</Alert>}
       {n(f.amount) > 0 && net !== '' && Math.abs(n(f.amount) - n(net)) >= 0.01 && <Alert kind="info">Amount differs from the net payable {fmtMoney2(net)} on the approved statement.</Alert>}
       <div className="form-grid">
         <Field label="Paid on" required><input type="date" autoFocus max={asOf} value={f.paidAt} onChange={(e) => set({ paidAt: e.target.value })} /></Field>
         <Field label="Mode"><select value={f.mode} onChange={(e) => set({ mode: e.target.value })}>{PAY_MODES.map((m) => <option key={m}>{m}</option>)}</select></Field>
         <Field label="Reference" required hint="Transfer, cheque or voucher number"><input value={f.reference} onChange={(e) => set({ reference: e.target.value })} placeholder={`${sep.code}/BANK/0000`} /></Field>
         <Field label="Amount (BDT)" required hint={net === '' ? 'Statement not finalised' : `Net payable ${fmtMoney2(net)}`}><input type="number" min="0" value={f.amount} onChange={(e) => set({ amount: e.target.value })} /></Field>
-        <Field label="Bank account credited" required={f.mode === 'Bank Transfer'}><input value={f.bankAccountNo} onChange={(e) => set({ bankAccountNo: e.target.value })} /></Field>
+        <Field label="Bank account credited" required={f.mode === 'Bank Transfer' && n(f.amount) > 0}><input value={f.bankAccountNo} onChange={(e) => set({ bankAccountNo: e.target.value })} /></Field>
         <Field label="Payee"><select value={f.payee} disabled={death} onChange={(e) => set({ payee: e.target.value })}>{['Employee', 'Nominee'].map((p) => <option key={p}>{p}</option>)}</select></Field>
         {f.payee === 'Nominee' && (
           <>

@@ -83,10 +83,10 @@ export default function HrDashboard() {
           <div className="grid grid-2">
             <Card title="My profile" actions={<StatusBadge status={me.status} />}>
               {kv([
-                ['Employee code', <span className="mono">{me.code || '(draft)'}</span>], ['Designation', designationName(me.employment.designation)],
+                ['Employee code', <span key="employee-code" className="mono">{me.code || '(draft)'}</span>], ['Designation', designationName(me.employment.designation)],
                 ['Department', DEPARTMENTS.find((d) => d.code === departmentOf(me))?.name], ['Grade', me.employment.grade],
                 ['Reporting manager', managerOf(me, employees)?.name], ['Joined', fmtDate(me.employment.joinDate)], ['Service', ins?.serviceText],
-                ['Last appraisal', me.lastAppraisal?.grade ? <span>{me.lastAppraisal.code} · <GradeBadge grade={me.lastAppraisal.grade} bands={settings.appraisal.bands} /></span> : ''],
+                ['Last appraisal', me.lastAppraisal?.grade ? <span key="last-appraisal">{me.lastAppraisal.code} · <GradeBadge grade={me.lastAppraisal.grade} bands={settings.appraisal.bands} /></span> : ''],
               ])}
               {ins?.flags.length > 0 && <div className="stack mt-8" style={{ gap: 6 }}>{ins.flags.map((f) => <div key={f.text} className={`alert alert-${f.tone} small`}>{f.text}</div>)}</div>}
             </Card>
