@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "kyc-dev", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--", "--port", "5173", "--strictPort"], "port": 5173 },
+    { "name": "bhasha-map-preview", "runtimeExecutable": "python", "runtimeArgs": ["-m", "http.server", "8765", "--directory", "C:/Users/Khorshed/AppData/Local/Temp/claude/E--Claude-Projects-KYC/fbe04605-0b41-4d36-93e3-727119f8dd48/scratchpad"], "port": 8765 }
+  ]
+}
