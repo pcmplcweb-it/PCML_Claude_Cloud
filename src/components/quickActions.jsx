@@ -55,7 +55,7 @@ export function CreditRequestModal({ customer: c, onClose }) {
   const [f, setF] = useState({ ...c.credit, requestedCreditDays: c.credit.requestedCreditDays ?? termsToDays(c.credit.paymentTerms) });
   const ins = businessInsights(c);
   const submit = () => {
-    if (!f.requestedLimit) { notify('Enter the requested limit.', 'error'); return; }
+    if (!(Number(f.requestedLimit) > 0)) { notify('Enter a requested limit greater than zero.', 'error'); return; }
     const fresh = { ...f, status: CREDIT_STATUS.REQUESTED, proposedLimit: '', approvedLimit: '', approvedCreditDays: '', decisionBy: '', decisionAt: '', decisionNote: '' };
     dispatch({ type: 'CREDIT_DECISION', id: c.id, by: currentUser.name, credit: fresh, detail: `Requested ${fmtMoney(f.requestedLimit)} on ${f.paymentTerms} (${f.requestedCreditDays || 0} credit days)` });
     notify(`Credit request submitted for ${c.businessName}.`);
@@ -82,7 +82,7 @@ export function CreditDecisionModal({ customer: c, onClose }) {
   const refs = referenceSummary(c.references || []);
   const decide = (status) => {
     const approved = status === CREDIT_STATUS.APPROVED;
-    if (approved && !f.approvedLimit) { notify('Enter the approved limit.', 'error'); return; }
+    if (approved && !(Number(f.approvedLimit) > 0)) { notify('Enter an approved limit greater than zero.', 'error'); return; }
     const decision = { ...f, status, decisionBy: currentUser.name, decisionAt: nowIso(), approvedLimit: approved ? f.approvedLimit : '', proposedLimit: approved ? f.proposedLimit : '', approvedCreditDays: approved ? f.approvedCreditDays : '' };
     dispatch({ type: 'CREDIT_DECISION', id: c.id, by: currentUser.name, credit: decision, detail: approved ? `Approved ${fmtMoney(f.approvedLimit)} on ${f.paymentTerms} (${f.approvedCreditDays} credit days). ${f.decisionNote || ''}` : f.decisionNote || 'Declined' });
     notify(`Credit ${status.toLowerCase()} for ${c.businessName}.`);

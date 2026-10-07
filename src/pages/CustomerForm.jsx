@@ -17,7 +17,7 @@ export default function CustomerForm() {
   const [c, setC] = useState(() => (existing ? structuredClone(existing) : emptyCustomer(currentUser.name)));
   const [section, setSection] = useState(0);
   const [errors, setErrors] = useState([]);
-  const [otp, setOtp] = useState({ sent: '', entered: '' });
+  const [otp, setOtp] = useState({ sent: '', entered: '', mobile: '' });
   const [bizTab, setBizTab] = useState('reg');
 
   const typeCfg = state.customerTypes.find((t) => t.code === c.customerType);
@@ -37,7 +37,7 @@ export default function CustomerForm() {
     setC(existing ? structuredClone(existing) : emptyCustomer(currentUser.name));
     setSection(0);
     setErrors([]);
-    setOtp({ sent: '', entered: '' });
+    setOtp({ sent: '', entered: '', mobile: '' });
     setBizTab('reg');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -77,11 +77,12 @@ export default function CustomerForm() {
   const sendOtp = () => {
     if (!/^01[0-9]{9}$/.test(normalizePhone(c.mobile))) { notify('Enter a valid mobile number first.', 'error'); return; }
     const code = String(Math.floor(100000 + Math.random() * 900000));
-    setOtp({ sent: code, entered: '' });
+    setOtp({ sent: code, entered: '', mobile: normalizePhone(c.mobile) }); // bind the code to the number it was sent to
     notify(`Demo OTP sent to ${c.mobile}: ${code}`, 'info');
   };
   const confirmOtp = () => {
-    if (otp.entered === otp.sent) { set({ mobileVerified: true }); setOtp({ sent: '', entered: '' }); notify('Mobile number verified.'); }
+    if (normalizePhone(c.mobile) !== otp.mobile) { setOtp({ sent: '', entered: '', mobile: '' }); notify('Mobile number changed — send a new OTP.', 'error'); return; }
+    if (otp.sent && otp.entered === otp.sent) { set({ mobileVerified: true }); setOtp({ sent: '', entered: '', mobile: '' }); notify('Mobile number verified.'); }
     else notify('OTP does not match.', 'error');
   };
 
@@ -179,7 +180,7 @@ export default function CustomerForm() {
               <Field label="Billing address" className="span-2" hint="Leave blank if same as business address.">
                 <textarea value={c.billingAddress} onChange={(e) => set({ billingAddress: e.target.value })} />
               </Field>
-              <Field label="Mobile number" required hint="Verified under Contact verification."><input value={c.mobile} onChange={(e) => set({ mobile: e.target.value, mobileVerified: false })} placeholder="01XXXXXXXXX" /></Field>
+              <Field label="Mobile number" required hint="Verified under Contact verification."><input value={c.mobile} onChange={(e) => { set({ mobile: e.target.value, mobileVerified: false }); setOtp({ sent: '', entered: '', mobile: '' }); }} placeholder="01XXXXXXXXX" /></Field>
               <Field label="Alternate mobile"><input value={c.altMobile} onChange={(e) => set({ altMobile: e.target.value })} /></Field>
               <Field label="Email"><input type="email" value={c.email} onChange={(e) => set({ email: e.target.value, emailVerified: false })} /></Field>
             </div>

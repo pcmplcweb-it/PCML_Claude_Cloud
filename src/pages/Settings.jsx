@@ -2,21 +2,25 @@ import { useEffect, useState } from 'react';
 import { Alert, Card, Field } from '../components/ui';
 import { DEFAULT_CUSTOMER_TYPES, DOC_TYPES, PERMISSIONS, ROLES } from '../data/config';
 import { useStore } from '../store/StoreContext';
+import { uid } from '../utils/helpers';
+
+// Stable editor-only key so editing a code doesn't remount the card (stripped on save).
+const withKeys = (list) => structuredClone(list).map((t) => ({ ...t, _key: uid('ct') }));
 
 export default function Settings() {
   const { state, dispatch, notify } = useStore();
-  const [types, setTypes] = useState(() => structuredClone(state.customerTypes));
+  const [types, setTypes] = useState(() => withKeys(state.customerTypes));
   const [tab, setTab] = useState(0);
 
   // Keep the editor in step with the store (e.g. after "Reset demo data").
-  useEffect(() => { setTypes(structuredClone(state.customerTypes)); }, [state.customerTypes]);
+  useEffect(() => { setTypes(withKeys(state.customerTypes)); }, [state.customerTypes]);
 
   const upd = (i, patch) => setTypes(types.map((t, k) => (k === i ? { ...t, ...patch } : t)));
   const toggleDoc = (i, doc) => {
     const t = types[i];
     upd(i, { requiredDocs: t.requiredDocs.includes(doc) ? t.requiredDocs.filter((d) => d !== doc) : [...t.requiredDocs, doc] });
   };
-  const addType = () => setTypes([...types, { code: `TYPE${types.length + 1}`, name: 'New customer type', description: '', requiredDocs: [DOC_TYPES.NID], requireBank: false, requireLocation: false, requireBusinessReg: false, minReferences: 1, reviewMonths: 12 }]);
+  const addType = () => setTypes([...types, { _key: uid('ct'), code: `TYPE${types.length + 1}`, name: 'New customer type', description: '', requiredDocs: [DOC_TYPES.NID], requireBank: false, requireLocation: false, requireBusinessReg: false, minReferences: 1, reviewMonths: 12 }]);
   const removeType = (i) => {
     const inUse = state.customers.some((c) => c.customerType === types[i].code);
     if (inUse) { notify('This type is used by existing customers and cannot be removed.', 'error'); return; }
@@ -25,7 +29,10 @@ export default function Settings() {
   const save = () => {
     if (types.some((t) => !t.code.trim() || !t.name.trim())) { notify('Every type needs a code and a name.', 'error'); return; }
     if (new Set(types.map((t) => t.code.trim())).size !== types.length) { notify('Customer type codes must be unique.', 'error'); return; }
-    dispatch({ type: 'SET_TYPES', customerTypes: types });
+    const codes = new Set(types.map((t) => t.code));
+    const orphaned = [...new Set(state.customers.map((c) => c.customerType).filter((code) => !codes.has(code)))];
+    if (orphaned.length) { notify(`Customer type(s) still used by existing customers: ${orphaned.join(', ')}. Keep them before saving.`, 'error'); return; }
+    dispatch({ type: 'SET_TYPES', customerTypes: types.map(({ _key, ...t }) => t) }); // eslint-disable-line no-unused-vars
     notify('Customer type configuration saved.');
   };
 
@@ -34,7 +41,7 @@ export default function Settings() {
       <div className="page-head">
         <div><h1>Settings</h1><p className="sub">Required documents and verification depth are configured per customer type.</p></div>
         <div className="page-actions">
-          <button className="btn" onClick={() => setTypes(structuredClone(DEFAULT_CUSTOMER_TYPES))}>Restore defaults</button>
+          <button className="btn" onClick={() => setTypes(withKeys(DEFAULT_CUSTOMER_TYPES))}>Restore defaults</button>
           <button className="btn btn-primary" onClick={save}>Save changes</button>
         </div>
       </div>
@@ -48,7 +55,7 @@ export default function Settings() {
           {tab === 0 && (
             <>
               {types.map((t, i) => (
-                <Card key={t.code || `new-${i}`} title={`${t.name} (${t.code})`} actions={<button className="btn btn-sm btn-ghost" onClick={() => removeType(i)}>Remove</button>}>
+                <Card key={t._key} title={`${t.name} (${t.code})`} actions={<button className="btn btn-sm btn-ghost" onClick={() => removeType(i)}>Remove</button>}>
                   <div className="form-grid cols-3">
                     <Field label="Code"><input value={t.code} onChange={(e) => upd(i, { code: e.target.value.toUpperCase() })} disabled={state.customers.some((c) => c.customerType === t.code)} /></Field>
                     <Field label="Name"><input value={t.name} onChange={(e) => upd(i, { name: e.target.value })} /></Field>

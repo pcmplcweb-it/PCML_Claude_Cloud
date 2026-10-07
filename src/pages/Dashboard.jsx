@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Card, EmptyState, StatusBadge } from '../components/ui';
 import { CREDIT_STATUS, STATUS, can } from '../data/config';
 import { useStore } from '../store/StoreContext';
-import { completeness, expiringDocuments, fmtDate, fmtDateTime, overdueReviews } from '../utils/helpers';
+import { expiringDocuments, fmtDate, fmtDateTime, overdueReviews } from '../utils/helpers';
 
 export default function Dashboard() {
   const { state, currentUser } = useStore();
@@ -11,7 +11,8 @@ export default function Dashboard() {
   const cfg = (c) => customerTypes.find((t) => t.code === c.customerType);
 
   const pending = customers.filter((c) => [STATUS.SUBMITTED, STATUS.VERIFICATION, STATUS.APPROVAL].includes(c.status));
-  const incomplete = customers.filter((c) => [STATUS.DRAFT, STATUS.RETURNED].includes(c.status) && completeness(c, cfg(c)) < 100);
+  // Counts every Draft/Returned record so the tile matches its ?status=incomplete link.
+  const incomplete = customers.filter((c) => [STATUS.DRAFT, STATUS.RETURNED].includes(c.status));
   const ninetyDaysAgo = Date.now() - 90 * 86400000;
   const rejected = customers.filter((c) => c.status === STATUS.REJECTED && new Date(c.updatedAt).getTime() >= ninetyDaysAgo);
   const active = customers.filter((c) => c.status === STATUS.ACTIVE);

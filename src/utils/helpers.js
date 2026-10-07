@@ -5,18 +5,31 @@ export const uid = (prefix = 'id') =>
 
 export const nowIso = () => new Date().toISOString();
 
-export const today = () => new Date().toISOString().slice(0, 10);
+const pad2 = (v) => String(v).padStart(2, '0');
 
-export const addDays = (dateStr, days) => {
-  const d = new Date(dateStr);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+// Local calendar date (Asia/Dhaka in production), not the UTC date from toISOString.
+export const localDate = (value = new Date()) => {
+  const d = value instanceof Date ? value : new Date(value);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 };
 
+export const today = () => localDate();
+
+// Date-only arithmetic is done in UTC on Y-M-D parts so the local offset never shifts the day.
+const ymd = (dateStr) => String(dateStr).slice(0, 10).split('-').map(Number);
+const fmtUtc = (t) => `${t.getUTCFullYear()}-${pad2(t.getUTCMonth() + 1)}-${pad2(t.getUTCDate())}`;
+
+export const addDays = (dateStr, days) => {
+  const [y, m, d] = ymd(dateStr);
+  return fmtUtc(new Date(Date.UTC(y, m - 1, d + days)));
+};
+
+// Clamps to the last day of the target month: 31 Jan + 1 month → 28/29 Feb.
 export const addMonths = (dateStr, months) => {
-  const d = new Date(dateStr);
-  d.setMonth(d.getMonth() + months);
-  return d.toISOString().slice(0, 10);
+  const [y, m, d] = ymd(dateStr);
+  const first = new Date(Date.UTC(y, m - 1 + months, 1));
+  const last = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
+  return fmtUtc(new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), Math.min(d, last))));
 };
 
 export const daysUntil = (dateStr) => {

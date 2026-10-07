@@ -51,6 +51,8 @@ export default function CustomerDetail() {
   const show = (v) => (sensitive ? v || '—' : maskValue(v));
   const pct = completeness(c, typeCfg);
   const by = currentUser.name;
+  // Category always follows the score, so an assessment with no criteria ticked is a valid Low.
+  const riskCat = c.risk.category || riskFromScore(c.risk.score || 0);
 
   const transition = (status, label, extra = {}) => {
     dispatch({ type: 'TRANSITION', id: c.id, status, label, by, reason: extra.reason, reviewer: extra.reviewer, patch: extra.patch, detail: extra.detail });
@@ -66,14 +68,17 @@ export default function CustomerDetail() {
   // ---- Workflow actions -------------------------------------------------
   const submit = () => {
     if (errors.length) { notify('Application is incomplete; open Edit to resolve the issues.', 'error'); return; }
-    transition(STATUS.SUBMITTED, 'Submitted', { detail: 'Submitted for verification', toast: 'Submitted for verification.' });
+    // Same duplicate gate as the form's submit.
+    const hard = dupes.filter((d) => d.reasons.some((r) => r !== 'Same business name'));
+    if (hard.length && !window.confirm(`Possible duplicate detected (${hard.map((d) => d.customer.code || d.customer.businessName).join(', ')}). Submit anyway for reviewer decision?`)) return;
+    transition(STATUS.SUBMITTED, 'Submitted', { detail: hard.length ? `Submitted with ${hard.length} duplicate flag(s)` : 'Submitted for verification', toast: 'Submitted for verification.' });
   };
   const startVerification = () => transition(STATUS.VERIFICATION, 'Verification Started', { reviewer, detail: `Assigned to ${reviewer}` });
   const sendForApproval = () => {
-    if (!c.risk.category) { notify('Complete the risk assessment before sending for approval.', 'error'); setTab('verify'); return; }
     const unverified = c.documents.filter((d) => d.current && !d.verified);
     if (unverified.length && !window.confirm(`${unverified.length} document(s) are not marked verified. Continue?`)) return;
-    transition(STATUS.APPROVAL, 'Verified', { detail: `Verification completed; risk ${c.risk.category}` });
+    // Persist the derived category with the transition (no separate audit entry) so a zero-criteria Low rating is valid.
+    transition(STATUS.APPROVAL, 'Verified', { detail: `Verification completed; risk ${riskCat}`, patch: c.risk.category ? undefined : { risk: { ...c.risk, category: riskCat } } });
   };
   const approve = () => transition(STATUS.ACTIVE, 'Approved', { detail: 'Customer activated', toast: 'Customer approved and activated.' });
   const withReason = (kind) => {
@@ -90,6 +95,8 @@ export default function CustomerDetail() {
     setModal(null); setReason(''); notify('Periodic review recorded.');
   };
   const deleteDraft = () => {
+    // A coded record (submitted then reopened) can't be discarded: nextCustomerCode would reissue its code.
+    if (c.code) { notify(`${c.code} has been issued a customer code and cannot be discarded.`, 'error'); return; }
     if (!window.confirm('Discard this draft application permanently?')) return;
     dispatch({ type: 'DELETE_CUSTOMER', id: c.id, by });
     nav('/kyc/customers');
@@ -106,7 +113,7 @@ export default function CustomerDetail() {
 
   // ---- Credit -----------------------------------------------------------
   const requestCredit = () => {
-    if (!creditForm.requestedLimit) { notify('Enter the requested limit.', 'error'); return; }
+    if (!(Number(creditForm.requestedLimit) > 0)) { notify('Enter a requested limit greater than zero.', 'error'); return; }
     // A fresh request clears any previous decision so stale approval data cannot show on a new request.
     const fresh = { ...creditForm, status: CREDIT_STATUS.REQUESTED, proposedLimit: '', approvedLimit: '', decisionBy: '', decisionAt: '', decisionNote: '' };
     setCreditForm(fresh);
@@ -114,7 +121,7 @@ export default function CustomerDetail() {
     notify('Credit request submitted.');
   };
   const decideCredit = (status) => {
-    if (status === CREDIT_STATUS.APPROVED && !creditForm.approvedLimit) { notify('Enter the approved limit.', 'error'); return; }
+    if (status === CREDIT_STATUS.APPROVED && !(Number(creditForm.approvedLimit) > 0)) { notify('Enter an approved limit greater than zero.', 'error'); return; }
     const approved = status === CREDIT_STATUS.APPROVED;
     const decision = { ...creditForm, status, decisionBy: by, decisionAt: nowIso(), approvedLimit: approved ? creditForm.approvedLimit : '', proposedLimit: approved ? creditForm.proposedLimit : '', approvedCreditDays: approved ? (creditForm.approvedCreditDays === '' ? termsToDays(creditForm.paymentTerms) : creditForm.approvedCreditDays) : '' };
     setCreditForm(decision);
@@ -126,7 +133,7 @@ export default function CustomerDetail() {
   if ([STATUS.DRAFT, STATUS.RETURNED].includes(c.status)) {
     if (can(role, 'edit')) actions.push(<Link key="edit" className="btn" to={`/kyc/customers/${c.id}/edit`}>✏️ Edit</Link>);
     if (can(role, 'submit')) actions.push(<button key="submit" className="btn btn-primary" onClick={submit}>Submit for verification</button>);
-    if (c.status === STATUS.DRAFT && can(role, 'edit')) actions.push(<button key="del" className="btn btn-ghost" onClick={deleteDraft}>Discard draft</button>);
+    if (c.status === STATUS.DRAFT && !c.code && can(role, 'edit')) actions.push(<button key="del" className="btn btn-ghost" onClick={deleteDraft}>Discard draft</button>);
   }
   if (c.status === STATUS.SUBMITTED && can(role, 'verify')) {
     actions.push(<button key="sv" className="btn btn-primary" onClick={() => setModal('assign')}>Start verification</button>);
@@ -436,7 +443,7 @@ export default function CustomerDetail() {
                     </label>
                   ))}
                 </div>
-                <div className="row mt-16"><span className="strong">Score: {c.risk.score}</span><RiskBadge category={c.risk.category} /></div>
+                <div className="row mt-16"><span className="strong">Score: {c.risk.score}</span><RiskBadge category={riskCat} /></div>
                 <div className="form-grid mt-16">
                   {/* Free-text fields commit on blur so the audit trail gets one entry per edit, not one per keystroke. */}
                   <Field label="Reason / basis" className="span-2"><textarea key={`reason-${c.updatedAt}`} disabled={!canVerifyNow} defaultValue={c.risk.reason} onBlur={(e) => e.target.value !== c.risk.reason && setRisk({ reason: e.target.value })} /></Field>
@@ -492,7 +499,7 @@ export default function CustomerDetail() {
                   <Field label="Trade / bank references" className="span-2"><textarea disabled={!can(role, 'creditRequest')} value={creditForm.references} onChange={(e) => setCreditForm({ ...creditForm, references: e.target.value })} /></Field>
                   <Field label="Justification" className="span-2"><textarea disabled={!can(role, 'creditRequest')} value={creditForm.justification} onChange={(e) => setCreditForm({ ...creditForm, justification: e.target.value })} /></Field>
                 </div>
-                {can(role, 'creditRequest') && [CREDIT_STATUS.NONE, CREDIT_STATUS.DECLINED].includes(c.credit.status) && (
+                {can(role, 'creditRequest') && [CREDIT_STATUS.NONE, CREDIT_STATUS.DECLINED].includes(c.credit.status) && c.status !== STATUS.REJECTED && (
                   <button className="btn btn-primary mt-16" onClick={requestCredit}>Submit credit request</button>
                 )}
               </Card>
