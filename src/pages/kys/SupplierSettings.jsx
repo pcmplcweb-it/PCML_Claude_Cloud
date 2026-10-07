@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Card, Field } from '../../components/ui';
 import { DEFAULT_SUPPLIER_TYPES, KYS_PERMISSIONS, KYS_ROLES, SUPPLIER_DOC_TYPES } from '../../kys/config';
 import { useStore } from '../../store/StoreContext';
+import { uid } from '../../utils/helpers';
 
 const ACTION_LABELS = {
   create: 'Create application', edit: 'Edit application / upload documents', submit: 'Submit for evaluation', evaluate: 'Evaluate (documents, site, references, risk)',
@@ -9,20 +10,22 @@ const ACTION_LABELS = {
   termsDecide: 'Decide commercial terms', termsRequest: 'Request commercial terms', viewSensitive: 'View sensitive data', viewDocuments: 'View documents',
   settings: 'Change settings', audit: 'View audit trail', review: 'Record periodic review',
 };
+// _key is a stable React key for each card; the code is editable so it can't be the key.
+const withKeys = (list) => structuredClone(list).map((t) => ({ ...t, _key: uid('st') }));
 
 export default function SupplierSettings() {
   const { state, dispatch, notify } = useStore();
-  const [types, setTypes] = useState(() => structuredClone(state.supplierTypes));
+  const [types, setTypes] = useState(() => withKeys(state.supplierTypes));
   const [tab, setTab] = useState(0);
 
-  useEffect(() => { setTypes(structuredClone(state.supplierTypes)); }, [state.supplierTypes]);
+  useEffect(() => { setTypes(withKeys(state.supplierTypes)); }, [state.supplierTypes]);
 
   const upd = (i, patch) => setTypes(types.map((t, k) => (k === i ? { ...t, ...patch } : t)));
   const toggleDoc = (i, doc) => {
     const t = types[i];
     upd(i, { requiredDocs: t.requiredDocs.includes(doc) ? t.requiredDocs.filter((d) => d !== doc) : [...t.requiredDocs, doc] });
   };
-  const addType = () => setTypes([...types, { code: `TYPE${types.length + 1}`, name: 'New supplier type', description: '', requiredDocs: [SUPPLIER_DOC_TYPES.TRADE_LICENSE, SUPPLIER_DOC_TYPES.TIN], requireSiteAudit: false, requireFinancials: false, requireBank: true, minReferences: 1, reviewMonths: 12 }]);
+  const addType = () => setTypes([...types, { _key: uid('st'), code: `TYPE${types.length + 1}`, name: 'New supplier type', description: '', requiredDocs: [SUPPLIER_DOC_TYPES.TRADE_LICENSE, SUPPLIER_DOC_TYPES.TIN], requireSiteAudit: false, requireFinancials: false, requireBank: true, minReferences: 1, reviewMonths: 12 }]);
   const removeType = (i) => {
     if (state.suppliers.some((s) => s.supplierType === types[i].code)) { notify('This type is used by existing suppliers and cannot be removed.', 'error'); return; }
     setTypes(types.filter((_, k) => k !== i));
@@ -30,7 +33,9 @@ export default function SupplierSettings() {
   const save = () => {
     if (types.some((t) => !t.code.trim() || !t.name.trim())) { notify('Every type needs a code and a name.', 'error'); return; }
     if (new Set(types.map((t) => t.code.trim())).size !== types.length) { notify('Supplier type codes must be unique.', 'error'); return; }
-    dispatch({ type: 'SET_SUPPLIER_TYPES', supplierTypes: types });
+    const missing = [...new Set(state.suppliers.map((s) => s.supplierType))].filter((c) => c && !types.some((t) => t.code.trim() === c));
+    if (missing.length) { notify(`Supplier type(s) ${missing.join(', ')} are used by existing suppliers and must be kept.`, 'error'); return; }
+    dispatch({ type: 'SET_SUPPLIER_TYPES', supplierTypes: types.map(({ _key, ...t }) => t) });
     notify('Supplier type configuration saved.');
   };
 
@@ -39,7 +44,7 @@ export default function SupplierSettings() {
       <div className="page-head">
         <div><h1>Settings</h1><p className="sub">Required documents and evaluation depth are configured per supplier type.</p></div>
         <div className="page-actions">
-          <button className="btn" onClick={() => setTypes(structuredClone(DEFAULT_SUPPLIER_TYPES))}>Restore defaults</button>
+          <button className="btn" onClick={() => setTypes(withKeys(DEFAULT_SUPPLIER_TYPES))}>Restore defaults</button>
           <button className="btn btn-primary" onClick={save}>Save changes</button>
         </div>
       </div>
@@ -53,7 +58,7 @@ export default function SupplierSettings() {
           {tab === 0 && (
             <>
               {types.map((t, i) => (
-                <Card key={t.code || `new-${i}`} title={`${t.name} (${t.code})`} actions={<button className="btn btn-sm btn-ghost" onClick={() => removeType(i)}>Remove</button>}>
+                <Card key={t._key} title={`${t.name} (${t.code})`} actions={<button className="btn btn-sm btn-ghost" onClick={() => removeType(i)}>Remove</button>}>
                   <div className="form-grid cols-3">
                     <Field label="Code"><input value={t.code} onChange={(e) => upd(i, { code: e.target.value.toUpperCase() })} disabled={state.suppliers.some((s) => s.supplierType === t.code)} /></Field>
                     <Field label="Name"><input value={t.name} onChange={(e) => upd(i, { name: e.target.value })} /></Field>

@@ -208,7 +208,8 @@ export const supplierReviewsDue = (suppliers) =>
 export const supplierInsights = (s) => {
   const f = s.financials;
   const y1 = num(f.turnoverY1); const y2 = num(f.turnoverY2); const y3 = num(f.turnoverY3);
-  const growth = y2 ? Math.round(((y1 - y2) / y2) * 100) : null;
+  // Growth only when both years are entered; a blank latest year is missing data, not zero turnover.
+  const growth = f.turnoverY1 !== '' && f.turnoverY1 != null && y2 > 0 ? Math.round(((y1 - y2) / y2) * 100) : null;
   const threeYearTrend = y3 && y1 ? Math.round(((y1 - y3) / y3) * 100) : null;
   const leverage = num(f.netWorth) ? Math.round((num(f.loansOutstanding) / num(f.netWorth)) * 100) : null;
   const products = s.capability.products;

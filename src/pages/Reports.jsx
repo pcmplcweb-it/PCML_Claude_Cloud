@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, EmptyState, RiskBadge, StatusBadge } from '../components/ui';
 import { DIVISIONS, RISK, STATUS, STATUS_COLORS } from '../data/config';
 import { useStore } from '../store/StoreContext';
-import { completeness, expiringDocuments, fmtDate, overdueReviews } from '../utils/helpers';
+import { completeness, expiringDocuments, fmtDate, overdueReviews, today } from '../utils/helpers';
 
 const TONE = { gray: '#5b6675', blue: '#2a62c7', indigo: '#4b4fc4', purple: '#7a3fb3', green: '#1e7e4b', amber: '#b26a00', red: '#c62828' };
 
@@ -52,7 +52,7 @@ export default function Reports() {
     customers.forEach((c) => rows.push([c.code, c.businessName, c.name, cfg(c)?.name, c.division, c.district, c.mobile, c.status, c.risk.category, c.credit.status, c.credit.approvedLimit, c.credit.paymentTerms, c.credit.approvedCreditDays, c.reviewDue, completeness(c, cfg(c)), c.updatedAt]));
     const blob = new Blob([toCsv(rows)], { type: 'text/csv' });
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = `kyc_customers_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    a.href = URL.createObjectURL(blob); a.download = `kyc_customers_${today()}.csv`; a.click();
     URL.revokeObjectURL(a.href);
   };
 

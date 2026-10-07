@@ -12,8 +12,10 @@ const STATUS_FILTERS = [
   { value: '', label: 'All statuses' },
   { value: 'pending', label: 'Pending (Submitted / Evaluation / Approval)' },
   { value: 'incomplete', label: 'Incomplete (Draft / Returned)' },
+  { value: 'closed', label: 'Rejected / Blacklisted (last 90 days)' },
   ...Object.values(S).map((s) => ({ value: s, label: s })),
 ];
+const isRecent = (iso) => new Date(iso).getTime() >= Date.now() - 90 * 86400000;
 
 export default function SupplierList() {
   const { state, currentUser } = useStore();
@@ -45,6 +47,7 @@ export default function SupplierList() {
       .filter((s) => {
         if (status === 'pending') return [S.SUBMITTED, S.EVALUATION, S.APPROVAL].includes(s.status);
         if (status === 'incomplete') return [S.DRAFT, S.RETURNED].includes(s.status);
+        if (status === 'closed') return [S.REJECTED, S.BLACKLISTED].includes(s.status) && isRecent(s.updatedAt); // same 90-day window as the dashboard tile
         return !status || s.status === status;
       })
       .filter((s) => !type || s.supplierType === type)

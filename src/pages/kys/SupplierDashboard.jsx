@@ -36,7 +36,7 @@ export default function SupplierDashboard() {
   const tiles = [
     { label: 'Pending applications', value: pending.length, hint: 'Submitted, in evaluation or awaiting approval', tone: 'blue', to: '/kys/suppliers?status=pending' },
     { label: 'Incomplete records', value: incomplete.length, hint: 'Drafts and returned applications', tone: 'amber', to: '/kys/suppliers?status=incomplete' },
-    { label: 'Rejected / blacklisted', value: closed.length, hint: 'In the last 90 days', tone: 'red', to: `/kys/suppliers?status=${encodeURIComponent(S.BLACKLISTED)}` },
+    { label: 'Rejected / blacklisted', value: closed.length, hint: 'In the last 90 days', tone: 'red', to: '/kys/suppliers?status=closed' },
     { label: 'Expiring documents', value: expiring.length, hint: 'Licences and certifications within 60 days or expired', tone: 'amber', to: '/kys/reviews' },
     { label: 'Reviews due', value: reviews.length, hint: 'Periodic supplier reviews due within 30 days', tone: 'red', to: '/kys/reviews' },
     { label: 'Approved suppliers', value: active.length, hint: 'Qualified and active', tone: 'green', to: `/kys/suppliers?status=${encodeURIComponent(S.ACTIVE)}` },

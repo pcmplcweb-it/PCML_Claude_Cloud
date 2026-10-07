@@ -4,7 +4,7 @@ import { RISK } from '../../data/config';
 import { COUNTRIES, SUPPLIER_STATUS, SUPPLIER_STATUS_COLORS, SUPPLY_CATEGORIES } from '../../kys/config';
 import { expiringSupplierDocuments, supplierCompleteness, supplierReviewsDue } from '../../kys/helpers';
 import { useStore } from '../../store/StoreContext';
-import { fmtDate } from '../../utils/helpers';
+import { fmtDate, today } from '../../utils/helpers';
 
 const TONE = { gray: '#5b6675', blue: '#2a62c7', indigo: '#4b4fc4', purple: '#7a3fb3', green: '#1e7e4b', amber: '#b26a00', red: '#c62828' };
 
@@ -51,7 +51,7 @@ export default function SupplierReports() {
     suppliers.forEach((s) => rows.push([s.code, s.name, cfg(s)?.name, s.country, s.capability.categories.join('; '), s.contactName, s.mobile, s.email, s.status, s.risk.category, s.siteAudit.score, s.terms.status, s.terms.approvedPaymentTerms, s.terms.approvedCap, s.reviewDue, supplierCompleteness(s, cfg(s)), s.updatedAt]));
     const blob = new Blob([toCsv(rows)], { type: 'text/csv' });
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = `kys_suppliers_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    a.href = URL.createObjectURL(blob); a.download = `kys_suppliers_${today()}.csv`; a.click();
     URL.revokeObjectURL(a.href);
   };
 

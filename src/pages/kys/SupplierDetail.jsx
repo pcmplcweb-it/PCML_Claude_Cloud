@@ -157,11 +157,11 @@ export default function SupplierDetail() {
               <Card title="Supplier profile">
                 {kv([
                   ['Supplier code', s.code], ['Supplier type', typeCfg?.name], ['Legal name', s.name], ['Trade name', s.tradeName], ['Registered address', s.address], ['City / country', `${s.city ? `${s.city}, ` : ''}${s.country}`],
-                  ['Website', s.website ? <a href={s.website} target="_blank" rel="noreferrer">{s.website}</a> : ''],
+                  ['Website', s.website ? <a key="website" href={s.website} target="_blank" rel="noreferrer">{s.website}</a> : ''],
                   ['Primary contact', s.contactName ? `${s.contactName}${s.contactDesignation ? ` · ${s.contactDesignation}` : ''}` : ''],
                   ['Mobile', <>{s.mobile} {s.mobileVerified ? <span className="badge badge-green">OTP verified</span> : <span className="badge badge-amber">unverified</span>}</>],
                   ['Email', <>{s.email || '—'} {s.email && (s.emailVerified ? <span className="badge badge-green">verified</span> : <span className="badge badge-gray">unverified</span>)}</>],
-                  ['Completeness', <div className="row"><div style={{ width: 140 }}><Progress value={pct} /></div><span className="small">{pct}%</span></div>],
+                  ['Completeness', <div key="completeness" className="row"><div style={{ width: 140 }}><Progress value={pct} /></div><span className="small">{pct}%</span></div>],
                 ])}
               </Card>
               <Card title="Registration & compliance">
@@ -170,8 +170,8 @@ export default function SupplierDetail() {
                   ['Trade license', r.tradeLicenseNo ? `${r.tradeLicenseNo}${r.tradeLicenseExpiry ? ` (expires ${fmtDate(r.tradeLicenseExpiry)})` : ''}` : ''],
                   ['TIN', show(r.tin)], ['BIN', show(r.bin)], ['Registration', r.regNo ? `${r.regNo}${r.regDate ? ` · ${fmtDate(r.regDate)}` : ''}` : ''],
                   ['IRC', r.ircNo ? `${r.ircNo}${r.ircExpiry ? ` (expires ${fmtDate(r.ircExpiry)})` : ''}` : ''],
-                  ['Certifications', c.certifications.length ? <div className="chip-list">{c.certifications.map((x) => <span key={x.id} className={`chip ${x.expiry && daysUntil(x.expiry) < 0 ? 'badge-red' : 'on'}`}>{x.name}{x.expiry ? ` · ${fmtDate(x.expiry)}` : ''}</span>)}</div> : ''],
-                  ['Declarations', <div className="chip-list">{[['Code of conduct', c.codeOfConductSigned], ['No sanctions', c.noSanctionsDeclared], ['No PEP', c.noPepDeclared], ['No child labour', c.noChildLabourDeclared], ['Environmental', c.environmentalCompliant]].map(([l, ok]) => <span key={l} className={`badge ${ok ? 'badge-green' : 'badge-gray'}`}>{ok ? '✓' : '—'} {l}</span>)}</div>],
+                  ['Certifications', c.certifications.length ? <div key="certifications" className="chip-list">{c.certifications.map((x) => <span key={x.id} className={`chip ${x.expiry && daysUntil(x.expiry) < 0 ? 'badge-red' : 'on'}`}>{x.name}{x.expiry ? ` · ${fmtDate(x.expiry)}` : ''}</span>)}</div> : ''],
+                  ['Declarations', <div key="declarations" className="chip-list">{[['Code of conduct', c.codeOfConductSigned], ['No sanctions', c.noSanctionsDeclared], ['No PEP', c.noPepDeclared], ['No child labour', c.noChildLabourDeclared], ['Environmental', c.environmentalCompliant]].map(([l, ok]) => <span key={l} className={`badge ${ok ? 'badge-green' : 'badge-gray'}`}>{ok ? '✓' : '—'} {l}</span>)}</div>],
                   ['Conflict of interest', c.conflictOfInterest || 'None declared'],
                 ])}
                 {!sensitive && <p className="small muted mt-8">Tax and identity numbers are masked for your role.</p>}
@@ -221,7 +221,7 @@ export default function SupplierDetail() {
                   ['Date / auditor', `${fmtDate(a.date)}${a.auditor ? ` by ${a.auditor}` : ''}`],
                   ['Score / grade', <><span className={`badge ${n(a.score) >= 80 ? 'badge-green' : n(a.score) >= 60 ? 'badge-amber' : 'badge-red'}`}>{a.score || '—'}</span> {a.grade}</>],
                   ['Findings', a.findings], ['Corrective actions', a.correctiveActions ? `${a.correctiveActions}${a.dueDate ? ` (due ${fmtDate(a.dueDate)})` : ''}` : 'None'],
-                  ['Status', a.correctiveActions ? (a.closed ? <span className="badge badge-green">Actions closed</span> : <span className="badge badge-amber">Actions open</span>) : <span className="badge badge-green">No actions required</span>],
+                  ['Status', a.correctiveActions ? (a.closed ? <span key="closed" className="badge badge-green">Actions closed</span> : <span key="open" className="badge badge-amber">Actions open</span>) : <span key="none" className="badge badge-green">No actions required</span>],
                 ])}
               </Card>
               <Card title="Review schedule">
@@ -246,7 +246,7 @@ export default function SupplierDetail() {
               {ins.flags.length > 0 && <div className="stack" style={{ gap: 8 }}>{ins.flags.map((fl) => <div key={fl.text} className={`alert alert-${FLAG_KIND[fl.tone] || 'info'}`}>{fl.text}</div>)}</div>}
               <div className="grid grid-2">
                 <Card title={`Products & services (${cap.products.length})`}>
-                  {kv([['Categories', cap.categories.length ? <div className="chip-list">{cap.categories.map((x) => <span key={x} className="chip on">{x}</span>)}</div> : '']])}
+                  {kv([['Categories', cap.categories.length ? <div key="categories" className="chip-list">{cap.categories.map((x) => <span key={x} className="chip on">{x}</span>)}</div> : '']])}
                   {cap.products.length === 0 ? <p className="muted mt-8">None recorded.</p> : (
                     <table className="mt-8"><thead><tr><th>Item</th><th className="right">Capacity / mo</th><th className="right">To us / mo</th><th className="right">Lead</th><th className="right">MOQ</th><th className="right">Unit price</th></tr></thead>
                       <tbody>{cap.products.map((p) => <tr key={p.id}><td>{p.item}<div className="small muted">{p.category}</div></td><td className="right mono">{n(p.monthlyCapacity).toLocaleString()} {p.unit}</td><td className="right mono">{n(p.committedToUs).toLocaleString()}</td><td className="right">{p.leadTimeDays ? `${p.leadTimeDays} d` : '—'}</td><td className="right">{p.minOrder || '—'}</td><td className="right mono">{p.unitPrice ? fmtMoney(p.unitPrice) : '—'}</td></tr>)}</tbody></table>
@@ -377,7 +377,7 @@ export default function SupplierDetail() {
                   <Field label="Security deposit / bank guarantee (BDT)"><input type="number" min="0" disabled={!canKys(role, 'termsRequest')} value={termsForm.securityDeposit} onChange={(e) => setTermsForm({ ...termsForm, securityDeposit: e.target.value })} /></Field>
                   <Field label="Justification" className="span-2"><textarea disabled={!canKys(role, 'termsRequest')} value={termsForm.justification} onChange={(e) => setTermsForm({ ...termsForm, justification: e.target.value })} /></Field>
                 </div>
-                {canKys(role, 'termsRequest') && [TERMS_STATUS.NONE, TERMS_STATUS.DECLINED].includes(s.terms.status) && <button className="btn btn-primary mt-16" onClick={requestTerms}>Submit terms request</button>}
+                {canKys(role, 'termsRequest') && [TERMS_STATUS.NONE, TERMS_STATUS.DECLINED].includes(s.terms.status) && ![S.REJECTED, S.BLACKLISTED].includes(s.status) && <button className="btn btn-primary mt-16" onClick={requestTerms}>Submit terms request</button>}
               </Card>
               <Card title="Terms decision">
                 <dl className="kv">
